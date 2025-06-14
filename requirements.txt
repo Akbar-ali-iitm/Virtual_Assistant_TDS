@@ -1,0 +1,8 @@
+fastapi
+httpx
+numpy
+semantic-text-splitter
+uvicorn
+openai
+tiktoken
+pillow
