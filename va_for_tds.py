@@ -100,7 +100,9 @@ def generate_llm_response(question, context):
         "* Always include a brief introduction or heading if needed.\n"
         "\n"
         "⚠️ **Important:** If the context does not contain enough information to answer the question, reply exactly with:\n"
-        "```\nI don't know\n```"
+        "```\n**I'm not sure based on the course material provided.** "
+            "Try rephrasing your question or check the "
+            "[TDS Discourse forum](https://discourse.onlinedegree.iitm.ac.in/c/courses/tds-kb/34) for more help.\n```"
     )
     messages = [
         {"role": "system", "content": system_prompt},
@@ -143,4 +145,12 @@ async def api_answer(request: Request):
         data = await request.json()
         return answer(data.get("question"), data.get("image"))
     except Exception as e:
-        return {"error": str(e)}
+        return {
+            "answer": (
+                "**Something went wrong while processing your question.** "
+                "Please try again later or report the issue. Error: "
+                f"`{str(e)}`"
+            ),
+            "links": []
+        }
+
