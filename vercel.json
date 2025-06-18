@@ -5,7 +5,7 @@
       "src": "va_for_tds.py",
       "use": "@vercel/python",
       "config": {
-        "maxLambdaSize": "mb"
+        "maxLambdaSize": "10mb"
       }
     }
   ],
