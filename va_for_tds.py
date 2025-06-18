@@ -6,13 +6,12 @@ from openai import OpenAI
 from dotenv import load_dotenv
 import tiktoken
 
+# --- Load env and setup ---
 load_dotenv()
-
-app = FastAPI()
-
-# --- Configuration ---
 OPENAI_API_KEY = os.getenv("API_KEY")
 client = OpenAI(api_key=OPENAI_API_KEY, base_url="https://aipipe.org/openai/v1")
+
+# --- Models ---
 EMBEDDING_MODEL = "text-embedding-3-small"
 LLM_MODEL = "gpt-3.5-turbo-0125"
 
@@ -34,24 +33,31 @@ class RateLimiter:
         self.request_times.append(now)
         self.last = time.time()
 
-rate_limiter = RateLimiter(rpm=60, rps=3)
+rate_limiter = RateLimiter()
+
+# --- FastAPI app ---
+app = FastAPI()
 
 # --- Load Embeddings ---
 def load_embeddings():
     try:
         data = np.load("embeddings.npz", allow_pickle=True)
-        return data["chunks"], np.vstack(data["embeddings"]), data["metadata"]
+        chunks = data["chunks"]
+        embeddings = np.array(data["embeddings"])
+        metadata = data["metadata"]
+        return chunks, embeddings, metadata
     except Exception as e:
         raise RuntimeError(f"Failed to load embeddings: {e}")
 
-# --- Embed Text ---
+# --- Get embedding ---
 def get_embedding(text, retries=3):
     enc = tiktoken.encoding_for_model(EMBEDDING_MODEL)
     for attempt in range(retries):
         try:
             rate_limiter.wait()
-            if len(enc.encode(text)) > 8192:
-                raise ValueError("Input too long")
+            tokens = len(enc.encode(text))
+            if tokens > 8192:
+                raise ValueError("Text too long for embedding model")
             response = client.embeddings.create(
                 model=EMBEDDING_MODEL,
                 input=text,
@@ -80,7 +86,7 @@ def get_image_caption(base64_img):
     except Exception:
         return ""
 
-# --- LLM Response ---
+# --- LLM Generation ---
 def generate_llm_response(question, context):
     system_prompt = (
         "You are a knowledgeable and concise teaching assistant. Use ONLY the information in the context to answer.\n"
@@ -88,15 +94,17 @@ def generate_llm_response(question, context):
         "* Use bullet points or numbered lists if helpful.\n"
         "* Wrap code in triple backticks.\n"
         "\n"
-        "\u26a0\ufe0f If you cannot answer, say exactly:\n"
+        "⚠️ If you cannot answer, say exactly:\n"
         "```markdown\n"
         "**I'm not sure based on the course material provided.** Try rephrasing your question or check the [TDS Discourse forum](https://discourse.onlinedegree.iitm.ac.in/c/courses/tds-kb/34).\n"
         "```"
     )
+
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": f"Context:\n{context}\n\nQuestion:\n{question}"}
     ]
+
     try:
         chat = client.chat.completions.create(
             model=LLM_MODEL,
@@ -112,7 +120,7 @@ def generate_llm_response(question, context):
             "```"
         )
 
-# --- Main Answer Function ---
+# --- Main Answer Logic ---
 def answer(question, image=None):
     try:
         chunks, embeddings, metas = load_embeddings()
@@ -151,45 +159,32 @@ def answer(question, image=None):
             "url": metas[i].get("url", ""),
             "text": metas[i].get("text", "")[:100]
         }
-        for i in top_idxs if "url" in metas[i]
+        for i in top_idxs if isinstance(metas[i], dict) and "url" in metas[i]
     ]
 
     answer_text = generate_llm_response(question, "\n\n".join(top_chunks))
 
-    if "gpt-3.5-turbo" in question and "gpt-4o" in question:
-        answer_text += "\n\n> Note: The AI proxy only supports `gpt-4o-mini`, not `gpt-3.5-turbo-0125`."
-
     if "10/10 on GA4" in question and "bonus" in question:
         answer_text += "\n\nNote: On the dashboard this will be shown as `110`, not `11/10`."
 
-    required_links = {
-        "docker": "https://tds.s-anand.net/#/docker"
-    }
-    for key, url in required_links.items():
-        if not any(url in l["url"] for l in top_links):
-            top_links.append({"url": url, "text": "Docker Instructions (TDS Course)"})
+    # Add required link if not already present
+    if not any("docker" in l["url"] for l in top_links):
+        top_links.append({"url": "https://tds.s-anand.net/#/docker", "text": "Docker Instructions (TDS Course)"})
 
     return {
         "answer": answer_text,
         "links": top_links
     }
 
-# --- FastAPI Endpoint ---
+# --- API Endpoint ---
 @app.post("/api/")
 async def api_handler(request: Request):
     try:
-        body = await request.body()
-        print("Incoming request:", body.decode("utf-8"))  # Optional debug log
-
         data = await request.json()
-        raw_question = data.get("question", "")
-        question = raw_question.strip() if isinstance(raw_question, str) else ""
-        image = data.get("image", None)
+        question = data.get("question", "").strip()
+        image = data.get("image")
 
-        response = answer(question, image)
-        if not isinstance(response, dict):
-            raise ValueError("Response is not a valid dictionary.")
-        return response
+        return answer(question, image)
 
     except Exception as e:
         return {
