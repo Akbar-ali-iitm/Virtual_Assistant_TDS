@@ -3,11 +3,9 @@ import time
 import numpy as np
 from fastapi import FastAPI, Request
 from openai import OpenAI
-from dotenv import load_dotenv
 import tiktoken
 
 # --- Load env and setup ---
-load_dotenv()
 OPENAI_API_KEY = os.getenv("API_KEY")
 client = OpenAI(api_key=OPENAI_API_KEY, base_url="https://aipipe.org/openai/v1")
 
