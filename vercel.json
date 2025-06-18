@@ -12,7 +12,7 @@
   "routes": [
     {
       "src": "/api/?",
-      "methods": ["POST"],
+      "methods": ["POST", "OPTIONS"],
       "dest": "va_for_tds.py"
     }
   ]
