@@ -14,7 +14,6 @@ client = OpenAI(api_key=OPENAI_API_KEY, base_url="https://aipipe.org/openai/v1")
 EMBEDDING_MODEL = "text-embedding-3-small"
 LLM_MODEL = "gpt-3.5-turbo-0125"
 
-# --- Rate Limiter ---
 class RateLimiter:
     def __init__(self, rpm=60, rps=3):
         self.rpm = rpm
@@ -45,7 +44,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- Load Embeddings ---
 def load_embeddings():
     try:
         data = np.load("embeddings.npz", allow_pickle=True)
@@ -127,7 +125,6 @@ def generate_llm_response(question, context):
             "```"
         )
 
-# --- Main Answer Logic ---
 def answer(question, image=None):
     try:
         chunks, embeddings, metas = load_embeddings()
@@ -183,7 +180,6 @@ def answer(question, image=None):
         "links": top_links
     }
 
-# --- API Endpoint ---
 @app.post("/api/")
 async def api_handler(request: Request):
     try:
