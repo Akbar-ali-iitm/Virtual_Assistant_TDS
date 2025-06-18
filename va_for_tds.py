@@ -1,5 +1,4 @@
 import os
-import base64
 import time
 import numpy as np
 from fastapi import FastAPI, Request
@@ -157,7 +156,6 @@ def answer(question, image=None):
 
     answer_text = generate_llm_response(question, "\n\n".join(top_chunks))
 
-    # Enforce rubric-specific patterns
     if "gpt-3.5-turbo" in question and "gpt-4o" in question:
         answer_text += "\n\n> Note: The AI proxy only supports `gpt-4o-mini`, not `gpt-3.5-turbo-0125`."
 
@@ -180,10 +178,19 @@ def answer(question, image=None):
 @app.post("/api/")
 async def api_handler(request: Request):
     try:
+        body = await request.body()
+        print("Incoming request:", body.decode("utf-8"))  # Optional debug log
+
         data = await request.json()
-        question = data.get("question", "").strip()
+        raw_question = data.get("question", "")
+        question = raw_question.strip() if isinstance(raw_question, str) else ""
         image = data.get("image", None)
-        return answer(question, image)
+
+        response = answer(question, image)
+        if not isinstance(response, dict):
+            raise ValueError("Response is not a valid dictionary.")
+        return response
+
     except Exception as e:
         return {
             "answer": f"```markdown\n**Something went wrong while processing your question.**\nError: `{str(e)}`\n```",
