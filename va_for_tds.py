@@ -4,6 +4,7 @@ import numpy as np
 from fastapi import FastAPI, Request
 from openai import OpenAI
 import tiktoken
+from fastapi.middleware.cors import CORSMiddleware
 
 # --- Load env and setup ---
 OPENAI_API_KEY = os.getenv("API_KEY")
@@ -35,6 +36,14 @@ rate_limiter = RateLimiter()
 
 # --- FastAPI app ---
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # or use ["https://yourfrontend.com"]
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # --- Load Embeddings ---
 def load_embeddings():
